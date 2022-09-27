@@ -1,0 +1,388 @@
+---
+title: "Functional RAP"
+subtitle: "Engineering reproducibility in the face of entropy"
+format: revealjs
+editor: source
+execute:
+  echo: true
+  eval: false
+---
+
+## Which of the following is not reproducible?
+
+Read from a database
+
+```{python eval=F}
+df = pandas.read_sql("SELECT * FROM USERS", connection)
+```
+
+Draw a sample at random
+
+```{r eval=F}
+coin_tosses <- sample(c("heads","tails"), 10, replace = TRUE)
+```
+
+Write to the filesystem
+
+```{r eval=F}
+readr::write_csv(data, "~/input.csv")
+```
+
+::: notes
+Which of these statements are not reproducible?
+:::
+
+# None of them are reproducible!
+
+::: notes
+None of them are. This was a trick question!
+
+Reproducibility requires that doing the same thing gives you the same result.
+
+None of those statements - even writing to disk - are reproducible.
+
+Let's explore why and what you can do about it.
+
+First we need to understand what *is* reproducible.
+:::
+
+## Pure functions are reproducible
+
+```{dot}
+//| fig-height: 6
+//| eval: true
+//| echo: false
+
+digraph D {
+  node [style="filled" penwidth=0 fillcolor="#f0f0ff" fontcolor=black fontname="Source Sans Pro"]
+
+  Input -> Function
+  Function -> Output
+}
+```
+
+::: notes
+Pure functions are reproducible.
+
+The output of a pure function only depends on it's input. The result doesn't change if it's calculated a second time or by another person - for the same input you always get the same output. You could replace the function call with it's return value in your program. This is known as *referential transparency*. Indeed you could replace the function body with a lookup table that records the relevant output for each input.
+
+A pure function has no side effects. Running it doesn't change the state of the world, the only consequence is the output value it returns.
+:::
+
+## Side-effects aren't reproducible
+
+```{dot eval=T}
+//| fig-height: 6
+//| eval: true
+//| echo: false
+
+digraph D {
+  node [style="filled" penwidth=0 fillcolor="#f0f0ff" fontcolor=black fontname="Source Sans Pro"]
+  { rank=same Function SideEffect }
+  
+  SideEffect[label="Side Effect"]
+  
+  Input -> Function
+  SideEffect -> Function
+  Function -> SideEffect
+  Function -> Output
+}
+```
+
+::: notes
+This is all very well in theory but we can't continue piping data around in circles *ad nauseum*. At some point we have to interact with the outside world - read from a database, deploy a website, email a report. In practice we need functions with side-effects.
+
+Side-effects are consequences that happen outside of a function or a pipeline's output. We also use the term "side-effect" to refer to causes that exist outside of a function or a pipeline's inputs.
+
+These side-effects are what make our pipelines useful allowing them to interact with the world. They're also what cause our pipelines to become non-reproducible.
+
+This mightn't be very obvious if it's the first time you're hearing this, so let's look at some examples.
+:::
+
+## Non-local state makes functions sensitive to context
+
+```{python eval=T}
+counter = 0
+
+def show_count():
+  print(f'Count is {counter}')
+
+show_count()
+```
+
+```{python eval=T}
+counter += 1
+
+show_count()
+```
+
+::: notes
+Here we can see a side-effecting `show_count()` function. It implicitly depends on the `counter` variable that is defined in the global scope. This means that it's result depends on the context in which it is run.
+
+Any time you call `show_count()` you could get a different result. It isn't reproducible. If the counter changes, then so does the result.
+
+This function also has no explicit return value. The call to `print` is itself a side-effect. We can't use it in a reproducible pipeline.
+
+Let's refactor this into a pure function.
+:::
+
+## Explicit inputs/ outputs let us separate code and context
+
+```{python eval=T}
+counter = 0
+
+def describe_count(count):
+  return f'Count is {count}'
+
+print(describe_count(counter))
+```
+
+```{python eval=T}
+counter += 1
+
+print(describe_count(counter))
+```
+
+::: footer
+[The Value of Values - Rich Hickey @ JaxConf 2012](https://www.youtube.com/watch?v=-6BsiVyC1kM)
+:::
+
+::: notes
+We define `describe_count` in terms of the `count` value. Now the dependency on this variable is explicit. Given the same input, this function will always return the same output. It's reproducible. Indeed it now returns an explicit output value reproducibly. The call to `print` happens outside.
+
+This code does essentially the same as before but because it's now reproducible it's much easier to reason about. We've made the dependency on the context explicit. The focus is on the value of the `count`, not the variable and it's place in memory.
+
+This might seem like a toy example but context mutations like this are exactly what's happening when you reassign a variable or use one of Pandas' `inPlace` operations. This problem looks trivial but state mutation is a pernicious source of subtle bugs in notebooks where the execution order and so kernel state may not have evolved linearly.
+
+Mutating state in place may yield savings in computer memory, but it imposes costs on the human capacity to reason about the flow of data through your code.
+
+Pure functions operating on immutable data are reproducible. You lose these guarantees once your pipeline has side-effects and state mutations.
+:::
+
+## The context isn't always apparent
+
+```{r eval=T}
+toss_coins <- function(n) sample(c("heads","tails"), n, replace = TRUE)
+
+toss_coins(5)
+```
+
+```{r eval=T}
+toss_coins(5)
+```
+
+::: footer
+https://en.wikipedia.org/wiki/Mersenne_Twister
+:::
+
+::: notes
+Some side effects are not obvious.
+
+The `sample` function depends not just on the arguments you pass it but also the state of a random number generator (RNG).
+
+In software the RNG is not truly random but rather a pseudo-random process. It gives highly erratic results but follows [a predictable process](https://en.wikipedia.org/wiki/Mersenne_Twister) if you know the starting state. The starting state is seeded by some source that varies such as the date or a hardware source like `/dev/random` which [collects noise from device drivers](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/drivers/char/random.c?id=refs/tags/v3.15.6#n52).
+
+This is a side-effect for our function, causing it's output to differ each time it's run.
+
+Each time I generate *these slides* I get a different set of coin tosses. Although executable, this slide (and a consequence the whole deck) isn't reproducible.
+:::
+
+## We can make the context explicit
+
+```{r eval=T}
+set.seed(1234) # set state deterministically
+
+toss_coins(5)
+```
+
+```{r eval=T}
+set.seed(1234) # reset the state again
+
+toss_coins(5)
+```
+
+::: notes
+We can make this function call reproducible by fixing the initial state of the random number generator to a constant value with `set.seed`.
+
+This level of purity may be helpful from an engineering perspective (for example this slide has a consistent checksum meaning it can be cached), but it would completely undermine certain statistical procedures. For example in cross-validation where we want to see the test/ train split vary to ensure we're not over-fitting a model.
+
+We might not always want perfect reproducibility. The key of course is in making that choice consciously.
+:::
+
+## I/O is side-effecting
+
+::: incremental
+Input is a side-effect
+
+```{r}
+df <- readr::read_csv("/home/robin/data-040422-final.csv")
+```
+:::
+
+::: incremental
+Output is a side-effect
+
+```{r}
+readr::write_csv(result, "~/results/output.csv")
+```
+:::
+
+::: notes
+A more ubiquitous source of side-effect is I/O (input/ output). This doesn't just apply to third-party APIs or our own database, even the filesystem is non-local state as far as our programs are concerned.
+
+It's not uncommon to see pipelines or notebooks start like this.
+
+The filepath is idiosyncratic and this code won't be reproducible on other people's machines unless they coincidentally have a user called `robin` with this file in the home directory. Indeed this probably won't be reproducible on Robin's machine at a future date unless care is taken to fix that file in place.
+
+More generally, even if the filepath is dependable, there's no guarantee that the content of the CSV file itself won't change.
+
+Even the *writing* of files is not reproducible. CLICK!
+
+This function alone can't guarantee that the destination directory `~/results` exists.
+
+These problems become all the more apparent with APIs or databases when network interruptions and other external concerns jeopardise the reproducibility of your programme.
+:::
+
+## Dependency-injection is explicit
+
+```{python}
+import pandas as pd
+
+my_conn = snowflake.connector.connect(...)
+```
+
+Instead of relying on global state:
+
+```{python}
+def get_data():
+  return pd.read_sql("SELECT * FROM USERS", my_conn)
+  
+get_data()
+```
+
+We can make dependencies explicit:
+
+```{python}
+def get_data(connection):
+  return pd.read_sql("SELECT * FROM USERS", connection)
+
+get_data(my_conn)
+```
+
+::: notes
+The problem isn't that these side-effects exist; they're necessary.
+
+The problem is that when they're implicit they tend to hide dependencies.
+
+We can make them explicit with techniques like dependency injection. The function receives a database connection, for example, as an input instead of relying on it existing in the programs global state.
+
+Now the function declares it's requirements. It draws attention to potential side-effects and forces you to think about them.
+:::
+
+## Execution context is explicit
+
+Command-line arguments
+
+```{bash}
+python pipeline.py input.csv output.parquet
+```
+
+Environment variables
+
+```{bash}
+env DB="http://user:pw@localhost:1337" python pipeline.py
+```
+
+Configuration data
+
+```{bash}
+python pipeline.py configuration.yaml
+```
+
+::: footer
+https://12factor.net/
+:::
+
+::: notes
+Likewise we can pull side-effects through to the very edges of our pipelines, passing configuration in only at the execution context.
+
+This means the pipeline no longer has to be concerned with coordinating state. We may want some graceful error handling, but the pipeline itself should be context-free and reproducible.
+
+Indeed extending this practice into the execution context itself is what leads to the Infrastructure as Code and DevOps movement where machines and services can themselves be provisioned reproducibly from declarative configuration.
+:::
+
+## Functional pipeline,<br />configured context
+
+```{dot eval=T}
+//| fig-height: 5
+//| eval: true
+//| echo: false
+
+digraph D {
+  node [style="filled" penwidth=0 fillcolor="#f0f0ff" fontcolor=black fontname="Source Sans Pro"]
+  { rank=same Function1 Input }
+  { rank=same Function3 Output }
+  
+  Input -> Function1
+  Function1 -> Function2
+  Function2 -> Function3
+  Function3 -> Output
+}
+```
+
+::: footer
+https://www.destroyallsoftware.com/screencasts/catalog/functional-core-imperative-shell
+:::
+
+::: notes
+Pursuing a separation of these concerns - what Gary Bernhart has called [functional core, imperative shell](https://www.destroyallsoftware.com/screencasts/catalog/functional-core-imperative-shell) - leads us to a point where all of the dependencies are captured explicitly and their values gathered together into configuration.
+
+Here we have a pipeline composed of pure-functions with all the necessary side-effects contained to explicitly configured contexts at each end.
+
+This makes it easier to maintain reproducible code. When the code is changed you can see how the pieces fit together and what the consequences of a refactoring are on the rest of the pipeline's code base. When the infrastructure changes you may be lucky enough to only need to change the configuration and not the code at all. This also helps sub-divide the code into modules as each component explicitly declares its requirements making them easier to test in isolation. The preceding examples makes it trivial to pass in a test database connection.
+
+You'll note that this hasn't really fixed the ultimate cause of our problems. As Rick explained, we shouldn't expect to ever be able to fix the rest of the universe in place. The best we can do is hope to contain the unreliable bits, pushing them to the edges so we can carve out a space to pursue reproducibility.
+
+We can go a step further than the above and strive for reproducibility in inputs and outputs, our interaction with data outside of the pipeline.
+:::
+
+## Packaging data
+
+- versioning lets you "change" immutable values
+- an artifact's identity combines a name and a version
+- build systems give pipeline runs a version too
+- build systems also require you to automate your dependencies
+
+::: notes
+We've seen that the functional approach leads us to immutability. Steps in your pipeline can only communicate with one another through their arguments and return values. We aren't mutating the objects passing through the pipeline or a global state. The intermediate values are immutable.
+
+But we need to change things to do useful work over time as the external context changes for example as upstream data sources are updated.
+
+To do this with immutable state requires that we identify the different versions of that state as they evolve over time.
+
+Ultimate the version is identified by the values in the data. This becomes cumbersome and we need a more succinct version identifier. Instead we can identity versions by a name formed of two parts. One is a location or label we can use as a reference. The other is the version or state in time.
+
+We can treat files as artifacts. We can use artifact repositories to store the version history like we use source control systems like `git` to manage our pipeline code. A humble S3 bucket will let you update the value of keys in place while it tracks the version history. The key serves as a mutable pointer always updated to refer to the latest file (like the `HEAD` commit or branch tip in `git`) but we can always retrieve a known version of our files to reproduce a pipeline run.
+
+Indeed we can unite the two. Using a build system that runs your workflow, recording the versions of the input data and source code, then coining a version of the output data so that downstream pipelines can also run reproducibly. The very pipeline run itself is immutable and identified for posterity with a build number.
+
+We can achieve a similar historical record using databases that support native versioning or by taking snapshots and treating the contents like file artifacts.
+
+Be wary of any upstream source that can mutate over time without providing some means of identifying and distinguishing versions. You can of course defend against this to an extent by keeping a track of the data you receive with hashes or recording copies in caches and things like cassettes to record API transactions.
+
+Having a build system can take you a long way to being able to rebuild pipeline runs reproducibly.
+
+It requires that the process of assembling your dependencies is automated and reproducible itself. No more hunting through Slack or chasing colleagues to find the random excel file that makes the pipeline work. You can't expect a Continuous Integration/ Deployment server to read the readme and figure it out for themselves. Tacit knowledge must be explicitly codified. You can't claim that everything's fine because "it works on my machine". The build server is a shared consensus on configuration. A canonical source you can refer to to see how things work.
+
+Arguably the success from containerisation comes as much from virtualisation as from the fact that `Dockerfile`s, for example, automate dependency management down to the operating system level.
+
+Ultimately this is about taking lessons learned from years of software development - around version control and packaging - and applying them to data.
+:::
+
+## How to engineer reproducibility
+
+- Compose pipelines from pure functions passing immutable values
+- Make side-effects explicit and contain them with configuration
+- Automate the retrieval and provisioning of dependencies
+- Use build systems to track the context of pipeline runs
+- Keep version history (source and data) to reproduce pipeline results
