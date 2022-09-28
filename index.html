@@ -9,6 +9,7 @@
 <link href="index_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
   <meta name="generator" content="quarto-1.1.251">
 
+  <meta name="author" content="Robin Gower">
   <title>Functional RAP</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -389,6 +390,7 @@
 <section id="title-slide" class="center">
   <h1 class="title">Functional RAP</h1>
   <p class="subtitle">Engineering reproducibility in the face of entropy</p>
+  <p class="author">Robin Gower</p>
 </section>
 
 <section id="which-of-the-following-is-not-reproducible" class="slide level2">
@@ -427,7 +429,8 @@
 <p>Reproducibility requires that doing the same thing gives you the same result.</p>
 <p>None of those statements - even writing to disk - are reproducible.</p>
 <p>Let’s explore why and what you can do about it.</p>
-<p>First we need to understand what <em>is</em> reproducible.</p>
+<p>This talk hopes to share some lessons from a data-engineering perspective with data-scientists and analysts.</p>
+<p>To begin let’s think about what it means to be reproducible.</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -544,7 +547,7 @@ Input-&gt;Function
 </div>
 <aside class="notes">
 <p>This is all very well in theory but we can’t continue piping data around in circles <em>ad nauseum</em>. At some point we have to interact with the outside world - read from a database, deploy a website, email a report. In practice we need functions with side-effects.</p>
-<p>Side-effects are consequences that happen outside of a function or a pipeline’s output. We also use the term “side-effect” to refer to causes that exist outside of a function or a pipeline’s inputs.</p>
+<p>Side-effects are intended consequences that happen outside of a function or a pipeline’s output. We also use the term “side-effect” to refer to causes that exist outside of a function or a pipeline’s inputs.</p>
 <p>These side-effects are what make our pipelines useful allowing them to interact with the world. They’re also what cause our pipelines to become non-reproducible.</p>
 <p>This mightn’t be very obvious if it’s the first time you’re hearing this, so let’s look at some examples.</p>
 <style type="text/css">
@@ -572,6 +575,7 @@ Input-&gt;Function
 <pre><code>Count is 0</code></pre>
 </div>
 </div>
+<p>Sometime later…</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb6"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1"></a>counter <span class="op">+=</span> <span class="dv">1</span></span>
 <span id="cb6-2"><a href="#cb6-2"></a></span>
@@ -610,6 +614,7 @@ Input-&gt;Function
 <pre><code>Count is 0</code></pre>
 </div>
 </div>
+<p>Sometime later…</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb10"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1"></a>counter <span class="op">+=</span> <span class="dv">1</span></span>
 <span id="cb10-2"><a href="#cb10-2"></a></span>
@@ -623,7 +628,7 @@ Input-&gt;Function
 </div>
 <aside class="notes">
 <p>We define <code>describe_count</code> in terms of the <code>count</code> value. Now the dependency on this variable is explicit. Given the same input, this function will always return the same output. It’s reproducible. Indeed it now returns an explicit output value reproducibly. The call to <code>print</code> happens outside.</p>
-<p>This code does essentially the same as before but because it’s now reproducible it’s much easier to reason about. We’ve made the dependency on the context explicit. The focus is on the value of the <code>count</code>, not the variable and it’s place in memory.</p>
+<p>The result is essentially the same as before but because it’s now reproducible it’s much easier to reason about. We’ve made the dependency on the context explicit. The focus is on the value of the <code>count</code>, not the variable and it’s place in memory.</p>
 <p>This might seem like a toy example but context mutations like this are exactly what’s happening when you reassign a variable or use one of Pandas’ <code>inPlace</code> operations. This problem looks trivial but state mutation is a pernicious source of subtle bugs in notebooks where the execution order and so kernel state may not have evolved linearly.</p>
 <p>Mutating state in place may yield savings in computer memory, but it imposes costs on the human capacity to reason about the flow of data through your code.</p>
 <p>Pure functions operating on immutable data are reproducible. You lose these guarantees once your pipeline has side-effects and state mutations.</p>
@@ -646,17 +651,18 @@ Input-&gt;Function
 <span id="cb12-2"><a href="#cb12-2"></a></span>
 <span id="cb12-3"><a href="#cb12-3"></a><span class="fu">toss_coins</span>(<span class="dv">5</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>[1] "tails" "heads" "heads" "tails" "tails"</code></pre>
-</div>
-</div>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1"></a><span class="fu">toss_coins</span>(<span class="dv">5</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
 <pre><code>[1] "heads" "heads" "tails" "tails" "tails"</code></pre>
 </div>
 </div>
+<p>Sometime later…</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1"></a><span class="fu">toss_coins</span>(<span class="dv">5</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] "heads" "heads" "heads" "tails" "tails"</code></pre>
+</div>
+</div>
 <div class="footer">
-<p>https://en.wikipedia.org/wiki/Mersenne_Twister</p>
+<p>Pseudo-randomness from a <a href="https://en.wikipedia.org/wiki/Mersenne_Twister">Mersenne Twister</a></p>
 </div>
 <aside class="notes">
 <p>Some side effects are not obvious.</p>
@@ -686,6 +692,7 @@ Input-&gt;Function
 <pre><code>[1] "tails" "tails" "tails" "tails" "heads"</code></pre>
 </div>
 </div>
+<p>Sometime later…</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb18"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1"></a><span class="fu">set.seed</span>(<span class="dv">1234</span>) <span class="co"># reset the state again</span></span>
 <span id="cb18-2"><a href="#cb18-2"></a></span>
@@ -694,10 +701,13 @@ Input-&gt;Function
 <pre><code>[1] "tails" "tails" "tails" "tails" "heads"</code></pre>
 </div>
 </div>
+<div class="footer">
+<p><a href="https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/drivers/char/random.c?id=refs/tags/v3.15.6#n52">How hardware seeds <code>/dev/random</code></a></p>
+</div>
 <aside class="notes">
 <p>We can make this function call reproducible by fixing the initial state of the random number generator to a constant value with <code>set.seed</code>.</p>
-<p>This level of purity may be helpful from an engineering perspective (for example this slide has a consistent checksum meaning it can be cached), but it would completely undermine certain statistical procedures. For example in cross-validation where we want to see the test/ train split vary to ensure we’re not over-fitting a model.</p>
-<p>We might not always want perfect reproducibility. The key of course is in making that choice consciously.</p>
+<p>This level of purity may be helpful from an engineering perspective (for example this slide has a consistent checksum meaning it can be cached), but it would completely undermine certain analytical procedures. For example in cross-validation where we want to see the test/ train split vary to ensure we’re not over-fitting a statistical model.</p>
+<p>We might not always want perfect reproducibility. The key is in making that choice consciously.</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -729,9 +739,9 @@ Input-&gt;Function
 <p>It’s not uncommon to see pipelines or notebooks start like this.</p>
 <p>The filepath is idiosyncratic and this code won’t be reproducible on other people’s machines unless they coincidentally have a user called <code>robin</code> with this file in the home directory. Indeed this probably won’t be reproducible on Robin’s machine at a future date unless care is taken to fix that file in place.</p>
 <p>More generally, even if the filepath is dependable, there’s no guarantee that the content of the CSV file itself won’t change.</p>
-<p>Even the <em>writing</em> of files is not reproducible. CLICK!</p>
+<p>Even the <em>writing</em> of files is not reproducible.</p>
 <p>This function alone can’t guarantee that the destination directory <code>~/results</code> exists.</p>
-<p>These problems become all the more apparent with APIs or databases when network interruptions and other external concerns jeopardise the reproducibility of your programme.</p>
+<p>These problems become all the more apparent with APIs or databases when network interruptions and other external concerns jeopardise the reproducibility of your program.</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -797,7 +807,7 @@ Input-&gt;Function
 <div class="sourceCode cell-code" id="cb27"><pre class="sourceCode numberSource bash number-lines code-with-copy"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1"></a><span class="ex">python</span> pipeline.py configuration.yaml</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div class="footer">
-<p>https://12factor.net/</p>
+<p><a href="https://12factor.net/">https://12factor.net/</a></p>
 </div>
 <aside class="notes">
 <p>Likewise we can pull side-effects through to the very edges of our pipelines, passing configuration in only at the execution context.</p>
@@ -869,14 +879,31 @@ Function2-&gt;Function3
 </div>
 </div>
 <div class="footer">
-<p>https://www.destroyallsoftware.com/screencasts/catalog/functional-core-imperative-shell</p>
+<p><a href="https://www.destroyallsoftware.com/screencasts/catalog/functional-core-imperative-shell">Functional core, imperative shell</a></p>
 </div>
 <aside class="notes">
 <p>Pursuing a separation of these concerns - what Gary Bernhart has called <a href="https://www.destroyallsoftware.com/screencasts/catalog/functional-core-imperative-shell">functional core, imperative shell</a> - leads us to a point where all of the dependencies are captured explicitly and their values gathered together into configuration.</p>
 <p>Here we have a pipeline composed of pure-functions with all the necessary side-effects contained to explicitly configured contexts at each end.</p>
 <p>This makes it easier to maintain reproducible code. When the code is changed you can see how the pieces fit together and what the consequences of a refactoring are on the rest of the pipeline’s code base. When the infrastructure changes you may be lucky enough to only need to change the configuration and not the code at all. This also helps sub-divide the code into modules as each component explicitly declares its requirements making them easier to test in isolation. The preceding examples makes it trivial to pass in a test database connection.</p>
 <p>You’ll note that this hasn’t really fixed the ultimate cause of our problems. As Rick explained, we shouldn’t expect to ever be able to fix the rest of the universe in place. The best we can do is hope to contain the unreliable bits, pushing them to the edges so we can carve out a space to pursue reproducibility.</p>
-<p>We can go a step further than the above and strive for reproducibility in inputs and outputs, our interaction with data outside of the pipeline.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section></section>
+<section>
+<section id="lessons-from-engineering" class="title-slide slide level1 center">
+<h1>Lessons from engineering</h1>
+<aside class="notes">
+<p>We can go a step further than the above and strive for reproducibility in inputs and outputs, in our interaction with data outside of the pipeline.</p>
+<p>In these final slides I’ll discuss some lessons the data community can learn from software development. In particular version control and continuous delivery.</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -889,27 +916,48 @@ Function2-&gt;Function3
           display:block!important;
       }</style></aside>
 </section>
-<section id="packaging-data" class="slide level2">
-<h2>Packaging data</h2>
-<ul>
-<li>versioning lets you “change” immutable values</li>
-<li>an artifact’s identity combines a name and a version</li>
-<li>build systems give pipeline runs a version too</li>
-<li>build systems also require you to automate your dependencies</li>
-</ul>
+<section id="versions-are-values-over-time" class="slide level2">
+<h2>Versions are values over time</h2>
+<img data-src="images/heraclitus.jpg" class="r-stretch" style="float:right">
+<blockquote>
+<p>It is impossible to step in the same river twice</p>
+</blockquote>
+<p>Heraclitus c.a. 500 BC, possibly apocryphal</p>
 <aside class="notes">
 <p>We’ve seen that the functional approach leads us to immutability. Steps in your pipeline can only communicate with one another through their arguments and return values. We aren’t mutating the objects passing through the pipeline or a global state. The intermediate values are immutable.</p>
-<p>But we need to change things to do useful work over time as the external context changes for example as upstream data sources are updated.</p>
-<p>To do this with immutable state requires that we identify the different versions of that state as they evolve over time.</p>
-<p>Ultimate the version is identified by the values in the data. This becomes cumbersome and we need a more succinct version identifier. Instead we can identity versions by a name formed of two parts. One is a location or label we can use as a reference. The other is the version or state in time.</p>
-<p>We can treat files as artifacts. We can use artifact repositories to store the version history like we use source control systems like <code>git</code> to manage our pipeline code. A humble S3 bucket will let you update the value of keys in place while it tracks the version history. The key serves as a mutable pointer always updated to refer to the latest file (like the <code>HEAD</code> commit or branch tip in <code>git</code>) but we can always retrieve a known version of our files to reproduce a pipeline run.</p>
-<p>Indeed we can unite the two. Using a build system that runs your workflow, recording the versions of the input data and source code, then coining a version of the output data so that downstream pipelines can also run reproducibly. The very pipeline run itself is immutable and identified for posterity with a build number.</p>
-<p>We can achieve a similar historical record using databases that support native versioning or by taking snapshots and treating the contents like file artifacts.</p>
+<p>But we need to change things to do useful work over time as the external context changes, for example as upstream data sources are updated. How do we cope when the upstream source is mutable? We can use versions to control external change.</p>
+<p>Versions identify immutable states of data as it evolves over time.</p>
+<p>Heraclitus noted that one can’t step in the same river twice. Time marches on. It will be different water and you’re a different person.</p>
+<p>We have to distinguish the riverbed and the water running through it. We distinguish between an output and instances of it.</p>
+<p>Ultimately the version is identified by the values in the data. This becomes cumbersome and we need a more succinct version identifier. Instead we can identity versions by a name formed of two parts. One is a location or label we can use as a reference. The other is the version or state in time. The named output and versioned instances.</p>
+<p>Thus we treat data as artifacts, frozen in time.</p>
+<p>The parallel here is software releases, not source version control. You can use e.g.&nbsp;<code>git</code> to version your data but it’s unlikely that line-by-line diff and patches will be very efficient way to store it. You should use version control for the pipeline source code though.</p>
+<p>You can deploy files to artifact repositories. Even a simple S3 bucket will let you update a key in place while it records the version history. Some databases support versioning natively or you can create your own snapshots.</p>
+<p>This version history let’s us retrieve the exact conditions for a pipeline run and reproduce the results.</p>
 <p>Be wary of any upstream source that can mutate over time without providing some means of identifying and distinguishing versions. You can of course defend against this to an extent by keeping a track of the data you receive with hashes or recording copies in caches and things like cassettes to record API transactions.</p>
-<p>Having a build system can take you a long way to being able to rebuild pipeline runs reproducibly.</p>
-<p>It requires that the process of assembling your dependencies is automated and reproducible itself. No more hunting through Slack or chasing colleagues to find the random excel file that makes the pipeline work. You can’t expect a Continuous Integration/ Deployment server to read the readme and figure it out for themselves. Tacit knowledge must be explicitly codified. You can’t claim that everything’s fine because “it works on my machine”. The build server is a shared consensus on configuration. A canonical source you can refer to to see how things work.</p>
-<p>Arguably the success from containerisation comes as much from virtualisation as from the fact that <code>Dockerfile</code>s, for example, automate dependency management down to the operating system level.</p>
-<p>Ultimately this is about taking lessons learned from years of software development - around version control and packaging - and applying them to data.</p>
+<p>Be a good data citizen and surface versioning information about your own outputs to downstream consumers so that they might ensure reproducibility in their workflow.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="automation-proves-reproducibility" class="slide level2">
+<h2>Automation proves reproducibility</h2>
+<img data-src="images/brooms.png" class="r-stretch">
+<aside class="notes">
+<p>If you can run your pipeline locally, even if it’s repeatable, it’s really just an executable analytical pipeline. It’s not demonstrably reproducible until it’s running on emphemeral resources in a build system.</p>
+<p>A build system runs your workflow recording the versions of the input data, source code, and output. The run pipeline run itself is immutable and identified for posterity with a build number. Done correctly, we don’t need to reproduce the pipeline. This contract serves as a guarantee that you’ll simply get the same result.</p>
+<p>This requires that the process of assembling your dependencies is automated and reproducible itself. No more hunting through Slack or chasing colleagues to find the random excel file that makes the pipeline work. You can’t expect a build server to read the readme and figure it out for themselves. Tacit knowledge must be explicitly codified. You can’t claim that everything’s fine because “it works on my machine”. The build server is a shared consensus on configuration. A canonical source you can refer to to see how things work.</p>
+<p>Building on an emphemeral stack further enforces the discipline by preventing you from relying on state. I’d argue that the success of containerisation comes as much from virtualisation as from the fact that <code>Dockerfile</code>s, for example, automate dependency management down to the operating system level.</p>
+<p>There are plenty of choices of Continuous Integration or Continous Deployment tools and increasingly data-specific Workflow systems too.</p>
+<p>Don’t just say it’s reproducible. Prove it!</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -925,12 +973,15 @@ Function2-&gt;Function3
 <section id="how-to-engineer-reproducibility" class="slide level2">
 <h2>How to engineer reproducibility</h2>
 <ul>
-<li>Compose pipelines from pure functions passing immutable values</li>
-<li>Make side-effects explicit and contain them with configuration</li>
-<li>Automate the retrieval and provisioning of dependencies</li>
-<li>Use build systems to track the context of pipeline runs</li>
-<li>Keep version history (source and data) to reproduce pipeline results</li>
+<li>Keep the core of your pipeline as pure as possible</li>
+<li>Contain side-effects and make dependencies explicit</li>
+<li>Track (data) version history and automate workflows for reproducible builds</li>
 </ul>
+</section>
+<section id="the-world-wont-let-you-rap-and-what-to-do-about-it" class="slide level2">
+<h2>The world won’t let you rap,<br>and what to do about it</h2>
+<p><br> <span style="font-weight: 100; font-size: 1em;">rick@swirrl.com</span></p>
+<p><span style="font-weight: 100; font-size: 1em;">robin@infonomics.ltd.uk</span> <br> <img data-src="images/swirrl-becoming-small-rect.png" style="height: 1.5em"></p>
 <div class="footer footer-default">
 
 </div>
