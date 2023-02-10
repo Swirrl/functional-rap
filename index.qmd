@@ -2,14 +2,24 @@
 title: "Functional RAP"
 subtitle: "Engineering reproducibility in the face of entropy"
 author: "Robin Gower"
-format: revealjs
-#format: html
-#standalone: true
+abstract: Presented at Data Connect 2022
+#format: revealjs
+format:
+  html:
+    standalone: true
+    embed-resources: true
+    header-includes: |
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro&display=swap" rel="stylesheet"> 
+    title-block-banner: true
 editor: source
 execute:
   echo: true
   eval: false
 ---
+
+
 
 ## Which of the following is not reproducible?
 
@@ -426,5 +436,7 @@ Don't just say it's reproducible. Prove it!
 [rick@swirrl.com]{ style="font-weight: 100; font-size: 1em;"}
 
 [robin@infonomics.ltd.uk]{ style="font-weight: 100; font-size: 1em;"}
+
 <br />
+
 ![](images/swirrl-becoming-small-rect.png){ style="height: 1.5em"}
