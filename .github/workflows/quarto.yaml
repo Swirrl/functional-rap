@@ -18,6 +18,7 @@ jobs:
             any::htmltools
             any::knitr
             any::rmarkdown
+            any::reticulate
       - uses: quarto-dev/quarto-actions/render@v2
         with:
           to: html
