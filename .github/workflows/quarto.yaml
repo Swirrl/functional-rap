@@ -15,6 +15,7 @@ jobs:
         with:
           packages:
             any::jsonlite
+            any::htmltools
       - uses: quarto-dev/quarto-actions/render@v2
         with:
           to: html
